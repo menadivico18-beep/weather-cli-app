@@ -1,0 +1,135 @@
+import requests
+import json
+from datetime import datetime
+
+# Configurazione API
+OPEN_METEO_API = "https://api.open-meteo.com/v1/forecast"
+GEOCODING_API = "https://geocoding-api.open-meteo.com/v1/search"
+
+def get_coordinates(city_name):
+    """
+    Recupera le coordinate (lat, lon) di una città
+    """
+    try:
+        params = {
+            "name": city_name,
+            "count": 1,
+            "language": "it",
+            "format": "json"
+        }
+        response = requests.get(GEOCODING_API, params=params)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if not data.get("results"):
+            print(f"❌ Città '{city_name}' non trovata")
+            return None
+        
+        result = data["results"][0]
+        return {
+            "latitude": result["latitude"],
+            "longitude": result["longitude"],
+            "name": result["name"],
+            "country": result.get("country", "")
+        }
+    
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Errore nella richiesta di geocoding: {e}")
+        return None
+
+def get_weather(latitude, longitude):
+    """
+    Recupera i dati meteo attuali
+    """
+    try:
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "current": "temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m",
+            "temperature_unit": "celsius",
+            "wind_speed_unit": "kmh",
+            "timezone": "auto"
+        }
+        response = requests.get(OPEN_METEO_API, params=params)
+        response.raise_for_status()
+        
+        return response.json()
+    
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Errore nella richiesta meteo: {e}")
+        return None
+
+def interpret_weather_code(code):
+    """
+    Interpreta il codice meteo WMO
+    """
+    weather_codes = {
+        0: "☀️ Soleggiato",
+        1: "🌤️ Sereno",
+        2: "⛅ Parzialmente nuvoloso",
+        3: "☁️ Nuvoloso",
+        45: "🌫️ Nebbioso",
+        48: "🌫️ Nebbioso con brina",
+        51: "🌧️ Pioggia leggera",
+        53: "🌧️ Pioggia moderata",
+        55: "🌧️ Pioggia intensa",
+        61: "🌧️ Pioggia",
+        63: "⛈️ Pioggia moderata",
+        65: "⛈️ Pioggia intensa",
+        80: "🌧️ Pioggia leggera",
+        81: "🌧️ Pioggia moderata",
+        82: "🌧️ Pioggia intensa",
+        95: "⛈️ Temporale",
+        96: "⛈️ Temporale con grandine",
+        99: "⛈️ Temporale con grandine"
+    }
+    return weather_codes.get(code, "❓ Sconosciuto")
+
+def display_weather(city_data, weather_data):
+    """
+    Visualizza i dati meteo in formato user-friendly
+    """
+    current = weather_data["current"]
+    
+    print("\n" + "="*50)
+    print(f"🌍 METEO - {city_data['name']}, {city_data['country']}")
+    print("="*50)
+    print(f"📍 Coordinate: {city_data['latitude']:.2f}°, {city_data['longitude']:.2f}°")
+    print(f"🕐 Aggiornato: {current['time']}")
+    print("-"*50)
+    print(f"🌡️  Temperatura: {current['temperature_2m']}°C")
+    print(f"💨 Vento: {current['wind_speed_10m']} km/h")
+    print(f"💧 Umidità: {current['relative_humidity_2m']}%")
+    print(f"   Condizioni: {interpret_weather_code(current['weather_code'])}")
+    print("="*50 + "\n")
+
+def main():
+    """
+    Funzione principale
+    """
+    print("\n🌤️  === APPLICAZIONE METEO ===")
+    
+    city_name = input("Inserisci il nome di una città: ").strip()
+    
+    if not city_name:
+        print("❌ Nome città non valido")
+        return
+    
+    print(f"\n⏳ Recupero dati per '{city_name}'...")
+    
+    # Step 1: Recupera coordinate
+    city_data = get_coordinates(city_name)
+    if not city_data:
+        return
+    
+    # Step 2: Recupera dati meteo
+    weather_data = get_weather(city_data["latitude"], city_data["longitude"])
+    if not weather_data:
+        return
+    
+    # Step 3: Visualizza risultati
+    display_weather(city_data, weather_data)
+
+if __name__ == "__main__":
+    main()
